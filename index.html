@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cosmos">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
+  <title>Mnemo — Remember Everything</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,600;0,700;0,900;1,300;1,600&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── Accessibility: honour reduced-motion preference ── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+
+    /* ── Image upload field ── */
+    .image-upload-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      color: var(--ink3);
+      font-size: 0.88rem;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .image-upload-label:hover {
+      border-color: var(--acc);
+      background: var(--surface2);
+    }
+    .image-upload-label input[type="file"] {
+      display: none;
+    }
+    .fImagePreview-wrap {
+      position: relative;
+      display: inline-block;
+      margin-top: 8px;
+    }
+    #fImagePreview {
+      max-width: 100%;
+      max-height: 220px;
+      border-radius: 8px;
+      object-fit: contain;
+      display: block;
+    }
+    #fImagePreview.hidden { display: none; }
+    .fImageRemoveBtn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      font-size: 13px;
+      line-height: 24px;
+      text-align: center;
+      cursor: pointer;
+      display: none;
+    }
+    .fImagePreview-wrap:hover .fImageRemoveBtn { display: block; }
+
+    /* ── Image on flashcard answer ── */
+    .fc-card-image {
+      max-width: 100%;
+      max-height: 260px;
+      object-fit: contain;
+      border-radius: 10px;
+      margin: 14px auto 4px;
+      display: block;
+    }
+    .fc-card-image.hidden { display: none; }
+
+    /* ── Image on today session answer ── */
+    .sess-card-image {
+      max-width: 100%;
+      max-height: 220px;
+      object-fit: contain;
+      border-radius: 10px;
+      margin: 14px auto 4px;
+      display: block;
+    }
+    .sess-card-image.hidden { display: none; }
+  </style>
+</head>
+<body>
+<!-- ═══════════════════════════════════════════════════════════
+     WELCOME OVERLAY — first launch only
+═══════════════════════════════════════════════════════════ -->
+<div class="welcome-overlay" id="welcomeOverlay" role="dialog" aria-modal="true" aria-labelledby="welcomeHeading">
+  <div class="welcome-bg-grid" aria-hidden="true"></div>
+  <div class="welcome-orb welcome-orb-1" aria-hidden="true"></div>
+  <div class="welcome-orb welcome-orb-2" aria-hidden="true"></div>
+  <div class="welcome-orb welcome-orb-3" aria-hidden="true"></div>
+  <div class="welcome-card">
+    <div class="welcome-logo" aria-hidden="true">M</div>
+    <h1 class="welcome-title" id="welcomeHeading">Welcome to Mnemo</h1>
+    <p class="welcome-sub">The study app that actually feels good to use every day.</p>
+    <p class="welcome-desc">We've loaded a starter deck so you can feel how it works.<br>Takes about 2 minutes. Then you're set up for life.</p>
+    <button class="welcome-btn" id="welcomeStartBtn">Start My First Session →</button>
+    <p class="welcome-skip" id="welcomeSkip" role="button" tabindex="0">Skip intro and go straight to the app</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SIDEBAR
+═══════════════════════════════════════════════════════════ -->
+<nav class="sidebar" id="sidebar" aria-label="Main navigation">
+  <div class="sidebar-brand">
+    <div class="brand-logo" aria-hidden="true">M</div>
+    <div class="brand-text">
+      <span class="brand-name">Mnemo</span>
+      <span class="brand-tagline">Remember everything</span>
+    </div>
+  </div>
+
+  <div class="sidebar-streak" id="sidebarStreak" aria-label="Streak counter">
+    <div class="streak-flame" aria-hidden="true">🔥</div>
+    <div class="streak-body">
+      <div class="streak-num" id="streakNum">0</div>
+      <div class="streak-lbl">day streak</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav" id="sidebarNav" aria-label="Section navigation">
+    <div class="nav-group" id="simpleNavGroup">
+      <button class="nav-item" data-section="today"><span class="ni-icon" aria-hidden="true">⚡</span><span class="ni-label">Review Today</span><span class="ni-badge hidden" id="todayBadge" aria-label="cards due">0</span></button>
+      <button class="nav-item" data-section="decks"><span class="ni-icon" aria-hidden="true">📚</span><span class="ni-label">Decks</span></button>
+      <button class="nav-item" data-section="calendar"><span class="ni-icon" aria-hidden="true">📅</span><span class="ni-label">Calendar</span></button>
+      <button class="nav-item" data-section="journal"><span class="ni-icon" aria-hidden="true">📔</span><span class="ni-label">Journal</span></button>
+      <button class="nav-item" data-section="settings"><span class="ni-icon" aria-hidden="true">⚙️</span><span class="ni-label">Settings</span></button>
+      <!-- Hidden routing targets — no sidebar button shown -->
+      <button class="nav-item" data-section="flashcards" style="display:none"><span class="ni-icon" aria-hidden="true">📇</span><span class="ni-label">Flashcards</span></button>
+      <button class="nav-item" data-section="dateview"   style="display:none"><span class="ni-icon" aria-hidden="true">📅</span><span class="ni-label">Date View</span></button>
+      <button class="nav-item" data-section="browse"     style="display:none"><span class="ni-icon" aria-hidden="true">👁️</span><span class="ni-label">Browse</span></button>
+    </div>
+
+    <div class="expert-divider">
+      <button class="expert-toggle-btn" id="expertToggleBtn" aria-pressed="false">
+        <span class="et-icon" aria-hidden="true">⚡</span>
+        <span class="et-label">Expert Mode</span>
+        <span class="et-status" id="expertStatus">OFF</span>
+      </button>
+    </div>
+
+    <div class="nav-group expert-only hidden" id="expertNavGroup">
+      <div class="nav-group-label">Expert</div>
+      <button class="nav-item" data-section="analytics"><span class="ni-icon" aria-hidden="true">📊</span><span class="ni-label">Analytics</span></button>
+      <button class="nav-item" data-section="goals"><span class="ni-icon" aria-hidden="true">🎯</span><span class="ni-label">Goals</span></button>
+      <button class="nav-item" data-section="heatmap"><span class="ni-icon" aria-hidden="true">🗓️</span><span class="ni-label">Activity</span></button>
+      <button class="nav-item" data-section="import"><span class="ni-icon" aria-hidden="true">⬆️</span><span class="ni-label">Import / Export</span></button>
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="daily-goal-mini" aria-label="Daily goal progress">
+      <div class="dgm-row">
+        <span class="dgm-label">Daily Goal</span>
+        <span class="dgm-nums" id="dgmNums">0/20</span>
+      </div>
+      <div class="dgm-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Daily goal">
+        <div class="dgm-fill" id="dgmFill"></div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MOBILE TOPBAR
+═══════════════════════════════════════════════════════════ -->
+<header class="mob-topbar" id="mobTopbar">
+  <button class="mob-hamburger" id="mobMenuBtn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+    <span aria-hidden="true"></span>
+  </button>
+  <span class="mob-title" id="mobTitle">Mnemo</span>
+  <span class="mob-streak-pill" aria-label="Streak">🔥 <span id="mobStreak">0</span></span>
+</header>
+<div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MAIN CONTENT
+═══════════════════════════════════════════════════════════ -->
+<main class="main-content" id="mainContent">
+
+<!-- ─────────────────────────────────────────────────────────
+     TODAY
+───────────────────────────────────────────────────────── -->
+<section class="section" id="section-today" aria-labelledby="todayTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="todayTitle">Review Today</h1>
+      <p class="sec-sub" id="todayDateLabel"></p>
+    </div>
+    <div class="sec-header-right">
+      <label for="todayDeckFilter" class="visually-hidden">Filter by deck</label>
+      <select class="deck-filter-sel" id="todayDeckFilter">
+        <option value="all">All Decks</option>
+      </select>
+      <button class="btn-primary" id="startSessionBtn">▶ Start Session</button>
+      <button class="btn-secondary hidden" id="reviewAgainHeaderBtn">👁️ View Again</button>
+    </div>
+  </div>
+
+  <div class="today-stats-row" role="list" aria-label="Today's statistics">
+    <div class="stat-card stat-due" role="listitem">
+      <div class="stat-icon" aria-hidden="true">📋</div>
+      <div class="stat-val" id="statDue">0</div>
+      <div class="stat-lab">Due Today</div>
+    </div>
+    <div class="stat-card stat-done" role="listitem">
+      <div class="stat-icon" aria-hidden="true">✅</div>
+      <div class="stat-val" id="statDone">0</div>
+      <div class="stat-lab">Reviewed</div>
+    </div>
+    <div class="stat-card stat-streak" role="listitem">
+      <div class="stat-icon" aria-hidden="true">🔥</div>
+      <div class="stat-val" id="statStreakToday">0</div>
+      <div class="stat-lab">Day Streak</div>
+    </div>
+    <div class="stat-card stat-new" role="listitem">
+      <div class="stat-icon" aria-hidden="true">🆕</div>
+      <div class="stat-val" id="statNew">0</div>
+      <div class="stat-lab">New Cards</div>
+    </div>
+  </div>
+
+  <!-- SESSION AREA -->
+  <div class="session-wrap hidden" id="sessionWrap" aria-live="polite">
+    <div class="session-topbar">
+      <span class="sess-pile-badge" id="sessPileBadge">🆕 New</span>
+      <span class="sess-deck-tag" id="sessDeckTag"></span>
+      <span class="sess-prog" id="sessProg" aria-label="Progress">1 / 1</span>
+      <button class="btn-end-sess" id="endSessionBtn">✕ End<span class="visually-hidden"> session</span></button>
+    </div>
+    <div class="sess-pb-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Session progress">
+      <div class="sess-pb-fill" id="sessPbFill"></div>
+    </div>
+
+    <div class="sess-card" id="sessCard" aria-live="polite">
+      <div class="sess-q" id="sessQ"></div>
+      <div class="sess-answer-area hidden" id="sessAnswerArea">
+        <div class="sess-answer-sep" aria-hidden="true">— Answer —</div>
+        <div class="sess-a" id="sessA"></div>
+        <!-- Image shown with answer only — hidden when card has no image -->
+        <img id="sessCardImage" class="sess-card-image hidden" alt="Card image">
+      </div>
+    </div>
+
+    <div class="fc-nav-row">
+      <button class="fc-nav-btn" id="sessPrevBtn" aria-label="Previous card">◀</button>
+      <button class="fc-nav-btn" id="sessNavNextBtn" aria-label="Next card">▶</button>
+    </div>
+
+    <div class="sess-show-row" id="sessShowRow">
+      <button class="btn-show-answer" id="sessShowBtn">Show Answer &nbsp;<kbd>Space</kbd></button>
+    </div>
+    <div class="sess-show-row hidden" id="sessNextRow">
+      <button class="btn-show-answer" id="sessNextBtn">Next Card &nbsp;<kbd>→</kbd></button>
+    </div>
+    <div class="sess-rating-row hidden" id="sessRatingRow" aria-label="Rate this card">
+      <button class="rate-btn r-again" data-rating="again">Again<span>&lt;1d</span></button>
+      <button class="rate-btn r-hard"  data-rating="hard">Hard<span>~2d</span></button>
+      <button class="rate-btn r-good"  data-rating="good">Good<span>~4d</span></button>
+      <button class="rate-btn r-easy"  data-rating="easy">Easy<span>~7d</span></button>
+    </div>
+  </div>
+
+  <!-- SESSION COMPLETE -->
+  <div class="session-done hidden" id="sessionDone" aria-live="polite">
+    <div class="sd-emoji" aria-hidden="true">🎉</div>
+    <h2 class="sd-title">Session Complete!</h2>
+    <div class="sd-results" id="sdResults"></div>
+    <div class="sd-actions">
+      <button class="btn-primary" id="reviewAgainBtn">View Again</button>
+      <button class="btn-secondary" id="resetTodayReviewsBtn">Reset Today's Reviews</button>
+      <button class="btn-secondary" id="sessionDoneBtn">Done</button>
+    </div>
+  </div>
+
+  <!-- DUE LIST -->
+  <div class="today-due-list" id="todayDueList"></div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────
+     DECKS
+───────────────────────────────────────────────────────── -->
+<section class="section hidden" id="section-decks" aria-labelledby="decksTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="decksTitle">Decks</h1>
+      <p class="sec-sub">Organize your knowledge by subject</p>
+    </div>
+    <div class="sec-header-right">
+      <button class="btn-secondary" id="importDeckCsvBtn">Import CSV</button>
+      <button class="btn-primary" id="newDeckBtn">+ New Deck</button>
+    </div>
+  </div>
+  <div class="decks-grid" id="decksGrid"></div>
+  <div class="empty-state hidden" id="decksEmpty">
+    <div class="es-icon" aria-hidden="true">📚</div>
+    <div class="es-msg">No decks yet.<br>Create your first deck to begin.</div>
+    <button class="btn-primary" id="createFirstDeckBtn">Create Deck</button>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────
+     FLASHCARDS (Focus Mode)
+───────────────────────────────────────────────────────── -->
+<section class="section hidden" id="section-flashcards" aria-labelledby="flashcardsTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="flashcardsTitle">Flashcards</h1>
+      <p class="sec-sub">Focus mode — <kbd>Space</kbd> show &nbsp;·&nbsp; <kbd>1</kbd>–<kbd>4</kbd> rate &nbsp;·&nbsp; <kbd>←</kbd><kbd>→</kbd> navigate &nbsp;·&nbsp; <kbd>Ctrl+Z</kbd> undo</p>
+    </div>
+    <div class="sec-header-right">
+      <label for="fcDeckFilter" class="visually-hidden">Filter by deck</label>
+      <select class="sel-input" id="fcDeckFilter">
+        <option value="all">Auto</option>
+      </select>
+      <label for="fcTypeFilter" class="visually-hidden">Filter by type</label>
+      <select class="sel-input" id="fcTypeFilter">
+        <option value="all">Auto</option>
+        <option value="due">Due Only</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="fc-stage">
+    <!-- IDLE -->
+    <div class="fc-idle" id="fcIdle">
+      <div class="fc-idle-icon" aria-hidden="true">📇</div>
+      <div class="fc-idle-msg">Select a deck and filters — cards load automatically</div>
+    </div>
+
+    <!-- SESSION -->
+    <div class="fc-session hidden" id="fcSession" aria-live="polite">
+      <div class="fc-session-meta">
+        <span class="fc-pile-badge" id="fcPileBadge">🔁 Review</span>
+        <span class="fc-deck-tag" id="fcDeckTag"></span>
+        <span class="fc-prog" id="fcProg" aria-label="Progress">1 / 1</span>
+        <span class="fc-timer-box"><span class="fc-timer" id="fcTimer" aria-label="Elapsed time">0:00</span></span>
+      </div>
+      <div class="fc-pb-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Session progress">
+        <div class="fc-pb-fill" id="fcPbFill"></div>
+      </div>
+
+      <div class="fc-card" id="fcCard" aria-live="polite">
+        <div class="fc-q" id="fcQ"></div>
+        <div class="fc-answer-area hidden" id="fcAnswerArea">
+          <div class="fc-answer-sep" aria-hidden="true">— Answer —</div>
+          <div class="fc-a" id="fcA"></div>
+          <!-- Image shown with answer only — hidden when card has no image -->
+          <img id="fcCardImage" class="fc-card-image hidden" alt="Card image">
+        </div>
+      </div>
+
+      <!-- Navigation arrows + undo/redo -->
+      <div class="fc-nav-row">
+        <button class="fc-nav-btn" id="fcPrevBtn" aria-label="Previous card">◀</button>
+        <div class="fc-undo-redo">
+          <button class="fc-undo-btn disabled" id="fcUndoBtn" aria-label="Undo last rating" title="Ctrl+Z">↩ Undo</button>
+          <button class="fc-redo-btn disabled" id="fcRedoBtn" aria-label="Redo" title="Ctrl+Y">Redo ↪</button>
+        </div>
+        <button class="fc-nav-btn" id="fcNavNextBtn" aria-label="Next card">▶</button>
+      </div>
+
+      <!-- Show Answer row -->
+      <div class="fc-show-row" id="fcShowRow">
+        <button class="btn-show-answer" id="fcShowBtn">Show Answer &nbsp;<kbd>Space</kbd></button>
+      </div>
+
+      <!-- Dedicated Next row -->
+      <div class="fc-show-row hidden" id="fcNextRow">
+        <button class="btn-show-answer" id="fcNextBtn">Next Card &nbsp;<kbd>→</kbd></button>
+      </div>
+
+      <!-- Rating row -->
+      <div class="fc-rating-row hidden" id="fcRatingRow" aria-label="Rate this card">
+        <button class="rate-btn r-again" data-rating="again">Again<span>&lt;1d</span></button>
+        <button class="rate-btn r-hard"  data-rating="hard">Hard<span>~2d</span></button>
+        <button class="rate-btn r-good"  data-rating="good">Good<span>~4d</span></button>
+        <button class="rate-btn r-easy"  data-rating="easy">Easy<span>~7d</span></button>
+      </div>
+    </div>
+
+    <!-- DONE — buttons injected dynamically by showFcDone() -->
+    <div class="fc-done hidden" id="fcDone" aria-live="polite">
+      <div class="fcd-icon" aria-hidden="true">✅</div>
+      <div class="fcd-title">Session Complete!</div>
+      <div class="fcd-stats" id="fcdStats"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────
+     CALENDAR
+───────────────────────────────────────────────────────── -->
+<section class="section hidden" id="section-calendar" aria-labelledby="calendarTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="calendarTitle">Calendar</h1>
+      <p class="sec-sub">Your spaced repetition schedule at a glance</p>
+    </div>
+    <div class="sec-header-right">
+      <div class="cal-nav-pill" role="group" aria-label="Month navigation">
+        <button class="btn-icon" id="calPrev" aria-label="Previous month">◀</button>
+        <span class="cal-month-label" id="calMonthLabel" aria-live="polite"></span>
+        <button class="btn-icon" id="calNext" aria-label="Next month">▶</button>
+      </div>
+      <button class="btn-secondary" id="calTodayBtn">Today</button>
+    </div>
+  </div>
+  <div class="cal-layout">
+    <div class="cal-grid-area">
+      <div class="cal-wds" aria-hidden="true">
+        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+      </div>
+      <div class="cal-grid" id="calGrid" role="grid" aria-label="Calendar"></div>
+    </div>
+    <div class="cal-side-panel" aria-label="Selected date details">
+      <div class="cal-panel-date" id="calPanelDate">Select a date</div>
+      <div class="cal-panel-topics" id="calPanelTopics"></div>
+      <button class="btn-dashed" id="calAddTopicBtn">+ Add Topic to this date</button>
+      <div class="cal-upcoming-wrap">
+        <div class="cup-header">Upcoming <span class="pill-badge" id="cupBadge">0</span></div>
+        <div id="cupList"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────
+     JOURNAL
+───────────────────────────────────────────────────────── -->
+<section class="section hidden" id="section-journal" aria-labelledby="journalTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="journalTitle">Journal</h1>
+      <p class="sec-sub">Reflect on your learning journey</p>
+    </div>
+    <div class="sec-header-right">
+      <div class="cal-nav-pill" role="group" aria-label="Month navigation">
+        <button class="btn-icon" id="jPrev" aria-label="Previous month">◀</button>
+        <span class="cal-month-label" id="jMonthLabel" aria-live="polite"></span>
+        <button class="btn-icon" id="jNext" aria-label="Next month">▶</button>
+      </div>
+    </div>
+  </div>
+  <div class="journal-layout">
+    <div class="journal-mini-cal" aria-hidden="true">
+      <div class="jmc-wds"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+      <div class="jmc-grid" id="jMcGrid"></div>
+    </div>
+    <div class="journal-editor-col">
+      <div class="journal-date-head" id="journalDateHead">Select a date to write</div>
+      <label for="journalTA" class="visually-hidden">Journal entry</label>
+      <textarea class="journal-ta" id="journalTA" placeholder="Write your thoughts, reflections, study notes..."></textarea>
+      <div class="journal-stats-bar" aria-live="polite">
+        <span id="jWords">0 words</span>
+        <span id="jChars">0 chars</span>
+        <span class="j-saved-indicator" id="jSaved" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="journal-recent-col">
+      <div class="jrc-title">Recent Entries</div>
+      <div id="jRecentList"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────
+     SETTINGS
+───────────────────────────────────────────────────────── -->
+<section class="section hidden" id="section-settings" aria-labelledby="settingsTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="settingsTitle">Settings</h1>
+      <p class="sec-sub">Customize your Mnemo experience</p>
+    </div>
+  </div>
+  <div class="settings-layout">
+    <div class="settings-card">
+      <div class="sc-title">🎨 Theme</div>
+      <div class="theme-grid" id="themeGrid" role="radiogroup" aria-label="Select theme">
+        <button class="theme-opt" data-theme="cosmos"       aria-pressed="true" ><div class="to-sw to-cosmos"       aria-hidden="true"></div>Cosmos</button>
+        <button class="theme-opt" data-theme="aurora"       aria-pressed="false"><div class="to-sw to-aurora"       aria-hidden="true"></div>Aurora</button>
+        <button class="theme-opt" data-theme="forest"       aria-pressed="false"><div class="to-sw to-forest"       aria-hidden="true"></div>Forest</button>
+        <button class="theme-opt" data-theme="darkink"      aria-pressed="false"><div class="to-sw to-darkink"      aria-hidden="true"></div>Dark Ink</button>
+        <button class="theme-opt" data-theme="parchment"    aria-pressed="false"><div class="to-sw to-parchment"    aria-hidden="true"></div>Parchment</button>
+        <button class="theme-opt" data-theme="magenta"      aria-pressed="false"><div class="to-sw to-magenta"      aria-hidden="true"></div>Magenta</button>
+        <button class="theme-opt" data-theme="highcontrast" aria-pressed="false"><div class="to-sw to-highcontrast" aria-hidden="true"></div>Contrast</button>
+        <button class="theme-opt" data-theme="ember"        aria-pressed="false"><div class="to-sw to-ember"        aria-hidden="true"></div>Ember</button>
+      </div>
+    </div>
+    <div class="settings-card">
+      <div class="sc-title">⚡ Expert Mode</div>
+      <p class="sc-desc">Unlocks Analytics, Goals, Activity, Import/Export and advanced scheduling tools.</p>
+      <button class="expert-toggle-big" id="expertToggleBig" aria-pressed="false">Expert Mode: <span id="expertBigStatus">OFF</span></button>
+    </div>
+    <div class="settings-card">
+      <div class="sc-title">🧠 Review Settings</div>
+      <div class="setting-row">
+        <label for="setNewCards">New Cards / Day</label>
+        <input type="number" class="setting-inp" id="setNewCards" value="20" min="1" max="500">
+      </div>
+    </div>
+    <div class="settings-card">
+      <div class="sc-title">👁️ Per-Deck Preview Mode</div>
+      <p class="sc-desc">When enabled for a deck, you can browse extra new cards beyond the daily limit at the end of a session. Ratings stay disabled to protect scheduling accuracy. Recommended for advanced users only.</p>
+      <div class="deck-preview-list" id="deckPreviewToggleList"></div>
+    </div>
+    <div class="settings-card">
+      <div class="sc-title">🍅 Pomodoro</div>
+      <div class="setting-row">
+        <label for="setFocus">Focus (mins)</label>
+        <input type="number" class="setting-inp" id="setFocus" value="25" min="5" max="90">
+      </div>
+      <div class="setting-row">
+        <label for="setBreak">Break (mins)</label>
+        <input type="number" class="setting-inp" id="setBreak" value="5" min="1" max="30">
+      </div>
+    </div>
+    <div class="settings-card">
+      <div class="sc-title">🎯 Daily Goal</div>
+      <div class="setting-row">
+        <label for="setDailyGoal">Cards per day</label>
+        <input type="number" class="setting-inp" id="setDailyGoal" value="20" min="1" max="500">
+      </div>
+      <button class="btn-primary" id="saveSettingsBtn" style="margin-top:12px">Save Settings</button>
+    </div>
+    <div class="settings-card">
+      <div class="sc-title">⚠️ Danger Zone</div>
+      <button class="btn-danger" id="clearDataBtn">Clear All Data</button>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────
+     ANALYTICS (Expert)
+───────────────────────────────────────────────────────── -->
+<section class="section hidden" id="section-analytics" aria-labelledby="analyticsTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="analyticsTitle">Analytics</h1>
+      <p class="sec-sub">Understand your learning patterns</p>
+    </div>
+  </div>
+  <div class="analytics-layout">
+    <div class="an-row">
+      <div class="an-card an-wide">
+        <div class="an-title">📈 Weekly Review Activity</div>
+        <div class="weekly-chart" id="weeklyChart"></div>
+      </div>
+      <div class="an-card">
+        <div class="an-title">💡 Weekly Digest</div>
+        <div id="weeklyDigest"></div>
+      </div>
+    </div>
+    <div class="an-row">
+      <div class="an-card">
+        <div class="an-title">🎯 Retention by Deck</div>
+        <div id="retentionByDeck"></div>
+      </div>
+      <div class="an-card">
+        <div class="an-title">📊 Confidence Breakdown</div>
+        <div id="confBars"></div>
+      </div>
+      <div class="an-card">
+        <div class="an-title">😬 Weakest Topics</div>
+        <div id="weakTopics"></div>
+      </div>
+    </div>
+    <div class="an-row">
+      <div class="an-card an-full">
+        <div class="an-title">🧠 Forgetting Curve — Next 14 Days</div>
+        <div class="forgetting-chart" id="forgettingChart"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────
+     GOALS (Expert)
+───────────────────────────────────────────────────────── -->
+<section class="section hidden" id="section-goals" aria-labelledby="goalsTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="goalsTitle">Goals</h1>
+      <p class="sec-sub">Set targets, stay accountable</p>
+    </div>
+    <div class="sec-header-right">
+      <button class="btn-primary" id="newGoalBtn">+ New Goal</button>
+    </div>
+  </div>
+  <div class="goals-layout">
+    <div class="goals-main">
+      <div class="daily-goal-card">
+        <div class="dgc-top">
+          <span class="dgc-title">📅 Daily Review Goal</span>
+          <button class="btn-link" id="editDailyGoalBtn">Edit</button>
+        </div>
+        <div class="dgc-bar-bg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Daily goal progress">
+          <div class="dgc-bar-fill" id="dgcFill"></div>
+        </div>
+        <div class="dgc-info" id="dgcInfo" aria-live="polite">0 / 20 cards today</div>
+      </div>
+      <div id="goalsList"></div>
+    </div>
+    <div class="goals-side">
+      <div class="streak-trophy" aria-label="Streak">
+        <div class="st-flame" aria-hidden="true">🔥</div>
+        <div class="st-num" id="stcNum">0</div>
+        <div class="st-label">Current Streak</div>
+        <div class="st-best" id="stcBest">Best: 0 days</div>
+      </div>
+      <div class="pom-card" aria-label="Focus timer">
+        <div class="pom-title">🍅 Focus Timer</div>
+        <div class="pom-clock" id="pomTime" aria-live="off">25:00</div>
+        <div class="pom-btns">
+          <button class="btn-icon" id="pomReset" aria-label="Reset timer">↺</button>
+          <button class="btn-primary" id="pomToggle">Start</button>
+          <button class="btn-icon" id="pomBreak" aria-label="Start break">☕</button>
+        </div>
+        <div class="pom-mode" id="pomMode" aria-live="polite">🎯 Focus Session</div>
+        <div class="pom-count">Sessions today: <strong id="pomCount">0</strong></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────
+     HEATMAP (Expert)
+───────────────────────────────────────────────────────── -->
+<section class="section hidden" id="section-heatmap" aria-labelledby="heatmapTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="heatmapTitle">Activity</h1>
+      <p class="sec-sub">Your learning consistency over time</p>
+    </div>
+  </div>
+  <div class="heatmap-layout">
+    <div class="heatmap-card">
+      <div class="hm-title">Review History — Last 12 Months</div>
+      <div class="hm-months-row" id="hmMonths" aria-hidden="true"></div>
+      <div class="hm-grid" id="hmGrid" role="grid" aria-label="Activity heatmap"></div>
+      <div class="hm-legend" aria-label="Heatmap legend">
+        <span>Less</span>
+        <div class="hml hml-0" aria-hidden="true"></div>
+        <div class="hml hml-1" aria-hidden="true"></div>
+        <div class="hml hml-2" aria-hidden="true"></div>
+        <div class="hml hml-3" aria-hidden="true"></div>
+        <div class="hml hml-4" aria-hidden="true"></div>
+        <span>More</span>
+      </div>
+    </div>
+    <div class="act-stats-grid" aria-label="Activity statistics">
+      <div class="act-stat"><div class="asv" id="actTotal">0</div><div class="asl">Total Reviews</div></div>
+      <div class="act-stat"><div class="asv" id="actDays">0</div><div class="asl">Active Days</div></div>
+      <div class="act-stat"><div class="asv" id="actAvg">0</div><div class="asl">Avg / Day</div></div>
+      <div class="act-stat"><div class="asv" id="actBest">0</div><div class="asl">Best Day</div></div>
+      <div class="act-stat"><div class="asv" id="actCurStreak">0</div><div class="asl">Current Streak</div></div>
+      <div class="act-stat"><div class="asv" id="actBestStreak">0</div><div class="asl">Best Streak</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────
+     IMPORT / EXPORT (Expert)
+───────────────────────────────────────────────────────── -->
+<section class="section hidden" id="section-import" aria-labelledby="importTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="importTitle">Import / Export</h1>
+      <p class="sec-sub">Bulk manage your study data</p>
+    </div>
+  </div>
+  <div class="import-layout">
+    <div class="import-card">
+      <div class="ic-title">📄 Import from CSV</div>
+      <div class="ic-desc">Columns: <code>title, notes, deck</code></div>
+      <div class="import-drop" id="importDrop" role="button" tabindex="0" aria-label="Drop CSV here or click to browse">
+        <div class="drop-icon" aria-hidden="true">📁</div>
+        <div class="drop-text">Drop CSV here or click to browse</div>
+        <input type="file" accept=".csv" id="csvFileInput" class="hidden-file-input" aria-label="Select CSV file">
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label class="field-label" for="csvDeckSel">Target Deck (override)</label>
+        <select class="field-input" id="csvDeckSel"><option value="">Auto from deck column</option></select>
+      </div>
+      <div class="csv-preview" id="csvPreview" aria-live="polite"></div>
+      <button class="btn-primary" id="csvImportBtn">Import CSV</button>
+    </div>
+    <div class="import-card">
+      <div class="ic-title">✍️ Paste &amp; Add</div>
+      <div class="ic-desc">One topic per line. Use <code>title | answer</code> for Q&amp;A.</div>
+      <label for="pasteTA" class="visually-hidden">Paste topics here</label>
+      <textarea class="import-ta" id="pasteTA" placeholder="Mitochondria | Powerhouse of the cell&#10;Newton's First Law | Objects in motion stay in motion&#10;Photosynthesis"></textarea>
+      <div class="field" style="margin-top:12px">
+        <label class="field-label" for="pasteDeckSel">Target Deck *</label>
+        <select class="field-input" id="pasteDeckSel"><option value="">-- Select Deck --</option></select>
+      </div>
+      <button class="btn-primary" id="pasteImportBtn">Add Topics</button>
+    </div>
+    <div class="import-card">
+      <div class="ic-title">📤 Export</div>
+      <div class="ic-desc">Download your data</div>
+      <button class="btn-secondary full-w" id="exportCsvBtn"  style="margin-bottom:10px">Export as CSV</button>
+      <button class="btn-secondary full-w" id="exportJsonBtn" style="margin-bottom:20px">Export JSON Backup</button>
+      <div class="ic-title" style="font-size:0.88rem">🖨️ Print Study Sheet</div>
+      <div class="ic-desc">Printable summary of all topics</div>
+      <button class="btn-secondary full-w" id="printBtn">Print / Save PDF</button>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────
+     DATE VIEW
+───────────────────────────────────────────────────────── -->
+<section class="section hidden" id="section-dateview" aria-labelledby="dvDateTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="dvDateTitle">Date View</h1>
+      <p class="sec-sub">
+        <span id="dvBadge"></span>
+        &nbsp;·&nbsp;
+        <span id="dvCount"></span>
+      </p>
+    </div>
+    <div class="sec-header-right">
+      <button class="btn-secondary" id="dvBackBtn">← Back to Calendar</button>
+    </div>
+  </div>
+  <div class="dv-cards-container" id="dvContainer"></div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────
+     BROWSE — view-only deck session
+───────────────────────────────────────────────────────── -->
+<section class="section hidden" id="section-browse" aria-labelledby="browseDeckTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="browseDeckTitle">Browse Deck</h1>
+      <p class="sec-sub">👁️ View only — no changes to your schedule</p>
+    </div>
+    <div class="sec-header-right">
+      <button class="btn-secondary" id="browseBackBtn">← Back to Decks</button>
+    </div>
+  </div>
+  <div class="dv-cards-container" id="browseContainer"></div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────
+     PAST FLASHCARDS (legacy compat)
+───────────────────────────────────────────────────────── -->
+<section class="section hidden" id="section-past" aria-labelledby="pastTitle">
+  <div class="sec-header">
+    <div class="sec-header-left">
+      <h1 class="sec-title" id="pastTitle">Past Flashcards</h1>
+      <p class="sec-sub" id="pastSubtitle">Review cards from a past date (read‑only)</p>
+    </div>
+    <div class="sec-header-right">
+      <button class="btn-secondary" id="backToCalendarBtn">← Back to Calendar</button>
+    </div>
+  </div>
+  <div class="past-flashcards-container" id="pastCardsContainer">
+    <div class="empty-state">Select a past date from the calendar to view cards.</div>
+  </div>
+</section>
+
+</main>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODALS
+═══════════════════════════════════════════════════════════ -->
+
+<!-- Delete / Confirm Modal -->
+<div class="modal-back hidden" id="deleteModal" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+  <div class="modal modal-sm">
+    <div class="modal-head">
+      <h2 class="modal-title" id="deleteModalTitle">Confirm Action</h2>
+      <button class="modal-close" data-modal-close="deleteModal" aria-label="Close dialog">✕</button>
+    </div>
+    <div class="modal-body"><p id="deleteMsg" class="delete-msg">This cannot be undone.</p></div>
+    <div class="modal-foot">
+      <button class="btn-secondary" data-modal-close="deleteModal">Cancel</button>
+      <button class="btn-danger" id="confirmDeleteBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Goal Modal -->
+<div class="modal-back hidden" id="goalModal" role="dialog" aria-modal="true" aria-labelledby="goalModalTitle">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 class="modal-title" id="goalModalTitle">New Goal</h2>
+      <button class="modal-close" data-modal-close="goalModal" aria-label="Close dialog">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="field-label" for="gTitle">Goal Title *</label>
+        <input class="field-input" id="gTitle" type="text" placeholder="Master Spanish Deck">
+      </div>
+      <div class="field">
+        <label class="field-label" for="gTarget">Target (number)</label>
+        <input class="field-input" id="gTarget" type="number" min="1" placeholder="e.g. 100">
+      </div>
+      <div class="field">
+        <label class="field-label" for="gDeadline">Deadline</label>
+        <input class="field-input" id="gDeadline" type="date">
+      </div>
+      <div class="field">
+        <label class="field-label" for="gNotes">Notes</label>
+        <textarea class="field-input" id="gNotes" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" data-modal-close="goalModal">Cancel</button>
+      <button class="btn-primary" id="saveGoalBtn">Save Goal</button>
+    </div>
+  </div>
+</div>
+
+<!-- Deck Detail Modal -->
+<div class="modal-back hidden" id="deckDetailModal" role="dialog" aria-modal="true" aria-labelledby="ddTitle">
+  <div class="modal modal-xl">
+    <div class="modal-head">
+      <button id="ddBackBtn" class="btn-secondary hidden" style="margin-right:auto">← Back</button>
+      <div>
+        <h2 class="modal-title" id="ddTitle">Deck Topics</h2>
+        <p class="modal-sub" id="ddSub"></p>
+      </div>
+      <button class="modal-close" data-modal-close="deckDetailModal" aria-label="Close dialog">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="dd-actions">
+        <button class="btn-primary"   id="ddAddBtn">+ Add Topic</button>
+        <button class="btn-secondary" id="ddStudyBtn">▶ Study This Deck</button>
+        <button class="btn-secondary" id="ddBrowseBtn">👁️ Browse / View Only</button>
+        <button class="btn-secondary" id="ddAddSubBtn">+ Sub-Deck</button>
+        <button class="btn-danger"    id="ddResetBtn">↺ Reset All Progress</button>
+      </div>
+      <div id="ddSubDecks"></div>
+      <div id="ddTopicList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────
+     TOPIC MODAL
+     #fImageData holds the base64 string read by saveTopic().
+     Image uploads via file picker; Ctrl+V paste on fContent
+     also detected in the inline script below.
+───────────────────────────────────────────────────────── -->
+<div class="modal-back hidden" id="topicModal" role="dialog" aria-modal="true" aria-labelledby="topicModalTitle">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <h2 class="modal-title" id="topicModalTitle">Add Topic</h2>
+      <button class="modal-close" data-modal-close="topicModal" aria-label="Close dialog">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="topicEditId">
+      <!-- Holds the base64 image string; read by topic.js saveTopic() -->
+      <input type="hidden" id="fImageData">
+
+      <div class="field">
+        <label class="field-label" for="fTitle">Title / Question *</label>
+        <input class="field-input" id="fTitle" type="text" placeholder="What is photosynthesis?">
+      </div>
+      <div class="field">
+        <label class="field-label" for="fContent">Notes / Answer</label>
+        <textarea class="field-input field-ta" id="fContent" placeholder="The process plants use to convert sunlight into energy..."></textarea>
+      </div>
+
+      <!-- Image upload — attached visually below the answer field -->
+      <div class="field">
+        <label class="field-label">Image / Screenshot <span style="font-weight:400;color:var(--ink3)">(optional — shown with answer during review)</span></label>
+        <label class="image-upload-label" for="fImage" aria-label="Upload an image or screenshot">
+          <span aria-hidden="true">📎</span>
+          <span id="fImageLabelText">Click to attach, or paste an image with Ctrl+V while in the answer field…</span>
+          <input type="file" id="fImage" accept="image/*" tabindex="-1">
+        </label>
+        <div class="fImagePreview-wrap">
+          <img id="fImagePreview" class="hidden" alt="Attached image preview">
+          <button type="button" class="fImageRemoveBtn" id="fImageRemoveBtn" aria-label="Remove image">✕</button>
+        </div>
+      </div>
+
+      <div class="field-row-2">
+        <div class="field">
+          <label class="field-label" for="fDeck">Deck *</label>
+          <select class="field-input" id="fDeck"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="fDate">Start Date *</label>
+          <input class="field-input" id="fDate" type="date">
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" id="cardTypeLbl">Card Type</label>
+        <div class="mode-tabs" id="cardTypeSwitch" role="group" aria-labelledby="cardTypeLbl">
+          <button class="mode-tab active" data-type="standard" aria-pressed="true">Standard</button>
+          <button class="mode-tab"        data-type="cloze"    aria-pressed="false">Cloze (fill-in-blank)</button>
+        </div>
+      </div>
+      <div class="cloze-hint hidden" id="clozeHint">Use <code>{{word}}</code> for blanks — e.g. "The mitochondria is the <code>{{powerhouse}}</code> of the cell"</div>
+      <div class="danger-zone-topic">
+        <button class="btn-reset-card hidden" id="resetCardBtn">↺ Reset this card's progress</button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" data-modal-close="topicModal">Cancel</button>
+      <button class="btn-primary" id="saveTopicBtn">Save Topic</button>
+    </div>
+  </div>
+</div>
+
+<!-- Past Date Review Modal (legacy) -->
+<div class="modal-back hidden" id="pastDateModal" role="dialog" aria-modal="true" aria-labelledby="pastDateTitle">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <h2 class="modal-title" id="pastDateTitle">Past Date Review</h2>
+      <button class="modal-close" data-modal-close="pastDateModal" aria-label="Close dialog">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="past-date-notice">📖 View only — these cards are shown for reference. No schedule changes.</p>
+      <div id="pastDateCardList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Manual Date Picker Modal -->
+<div class="modal-back hidden" id="manualDateModal" role="dialog" aria-modal="true" aria-labelledby="manualDateModalTitle">
+  <div class="modal modal-sm">
+    <div class="modal-head">
+      <h2 class="modal-title" id="manualDateModalTitle">Pick Next Review Date</h2>
+      <button class="modal-close" data-modal-close="manualDateModal" aria-label="Close dialog">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="field-label" for="manualNextDate">Next Review Date</label>
+        <input class="field-input" id="manualNextDate" type="date">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" data-modal-close="manualDateModal">Cancel</button>
+      <button class="btn-primary" id="confirmManualDate">Set Date</button>
+    </div>
+  </div>
+</div>
+
+<!-- Deck Modal -->
+<div class="modal-back hidden" id="deckModal" role="dialog" aria-modal="true" aria-labelledby="deckModalTitle">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 class="modal-title" id="deckModalTitle">New Deck</h2>
+      <button class="modal-close" data-modal-close="deckModal" aria-label="Close dialog">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="field-label" for="deckName">Deck Name *</label>
+        <input class="field-input" id="deckName" type="text" placeholder="Biology, Spanish, History...">
+      </div>
+      <div class="field">
+        <label class="field-label" for="deckDesc">Description</label>
+        <input class="field-input" id="deckDesc" type="text" placeholder="Optional">
+      </div>
+      <div class="field">
+        <label class="field-label" for="deckParent">Parent Deck (for sub-deck)</label>
+        <select class="field-input" id="deckParent"><option value="">None (top level)</option></select>
+      </div>
+      <div class="field">
+        <label class="field-label" id="colorLbl">Accent Color</label>
+        <div class="color-row" id="colorRow" role="group" aria-labelledby="colorLbl">
+          <button class="color-dot" data-color="#7B6EF6" style="background:#7B6EF6" aria-label="Purple"></button>
+          <button class="color-dot" data-color="#36E8AA" style="background:#36E8AA" aria-label="Teal"></button>
+          <button class="color-dot" data-color="#FF5C7A" style="background:#FF5C7A" aria-label="Pink"></button>
+          <button class="color-dot" data-color="#FFB547" style="background:#FFB547" aria-label="Amber"></button>
+          <button class="color-dot" data-color="#4FC3F7" style="background:#4FC3F7" aria-label="Sky blue"></button>
+          <button class="color-dot" data-color="#E040FB" style="background:#E040FB" aria-label="Magenta"></button>
+          <button class="color-dot" data-color="#FF8A65" style="background:#FF8A65" aria-label="Coral"></button>
+          <button class="color-dot" data-color="#26C6DA" style="background:#26C6DA" aria-label="Cyan"></button>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" id="schedModeLbl">Schedule Mode</label>
+        <div class="mode-tabs" id="deckModeSwitch" role="group" aria-labelledby="schedModeLbl">
+          <button class="mode-tab active" data-mode="fsrs"   aria-pressed="true" >⚡ Auto</button>
+          <button class="mode-tab"        data-mode="fixed"  aria-pressed="false">📅 Fixed Intervals</button>
+          <button class="mode-tab"        data-mode="manual" aria-pressed="false">✍️ Manual</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" data-modal-close="deckModal">Cancel</button>
+      <button class="btn-primary" id="saveDeckBtn">Save Deck</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCRIPTS — loaded in dependency order
+═══════════════════════════════════════════════════════════ -->
+<script src="fsrs.js"></script>
+<script src="script.js"></script>
+<script src="renderdecks.js"></script>
+<script src="topic.js"></script>
+<script src="today.js"></script>
+<script src="flashcards.js"></script>
+<script src="calender.js"></script>
+<script src="settings.js"></script>
+<script src="ai-generator.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ── Modal close via data-modal-close attribute ──────────────
+  document.addEventListener('click', function (e) {
+    const closeBtn = e.target.closest('[data-modal-close]');
+    if (closeBtn) {
+      const modalId = closeBtn.dataset.modalClose;
+      if (typeof closeModal === 'function') closeModal(modalId);
+    }
+  });
+
+  // ── Session rating buttons (Today section) ──────────────────
+  document.addEventListener('click', function (e) {
+    const rateBtn = e.target.closest('#sessRatingRow [data-rating]');
+    if (rateBtn && typeof rateSessionCard === 'function') {
+      rateSessionCard(rateBtn.dataset.rating);
+    }
+  });
+
+  // ── Flashcard rating buttons ────────────────────────────────
+  document.addEventListener('click', function (e) {
+    const rateBtn = e.target.closest('#fcRatingRow [data-rating]');
+    if (rateBtn && typeof fcRate === 'function') {
+      fcRate(rateBtn.dataset.rating);
+    }
+  });
+
+  // ── Mobile hamburger: sync aria-expanded ───────────────────
+  const hamburger = document.getElementById('mobMenuBtn');
+  if (hamburger) {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+      new MutationObserver(function () {
+        hamburger.setAttribute(
+          'aria-expanded',
+          sidebar.classList.contains('open') ? 'true' : 'false'
+        );
+      }).observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+    }
+  }
+
+  // ── Expert toggle: sync aria-pressed ───────────────────────
+  ['expertToggleBtn', 'expertToggleBig'].forEach(function (id) {
+    const btn    = document.getElementById(id);
+    const status = document.getElementById('expertStatus');
+    if (!btn || !status) return;
+    new MutationObserver(function () {
+      btn.setAttribute('aria-pressed', status.textContent === 'ON' ? 'true' : 'false');
+    }).observe(status, { childList: true });
+  });
+
+  // ── Deck detail back button visibility ─────────────────────
+  const ddBackBtn = document.getElementById('ddBackBtn');
+  if (ddBackBtn) {
+    const deckDetailModal = document.getElementById('deckDetailModal');
+    if (deckDetailModal) {
+      new MutationObserver(function () {
+        if (window.T?.deckNavStack) {
+          ddBackBtn.classList.toggle('hidden', window.T.deckNavStack.length <= 1);
+        }
+      }).observe(deckDetailModal, { attributes: true, attributeFilter: ['class'] });
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // IMAGE UPLOAD — topic modal
+  // Supports: file picker click + Ctrl+V paste into answer field
+  // ══════════════════════════════════════════════════════════
+
+  const fImage        = document.getElementById('fImage');
+  const fImageData    = document.getElementById('fImageData');
+  const fImagePreview = document.getElementById('fImagePreview');
+  const fImageRemove  = document.getElementById('fImageRemoveBtn');
+  const fImageLabel   = document.getElementById('fImageLabelText');
+
+  function clearTopicImage() {
+    if (fImageData)    fImageData.value    = '';
+    if (fImage)        fImage.value        = '';
+    if (fImagePreview) { fImagePreview.src = ''; fImagePreview.classList.add('hidden'); }
+    if (fImageLabel)   fImageLabel.textContent = 'Click to attach, or paste an image with Ctrl+V while in the answer field…';
+  }
+
+  function applyImageFile(file) {
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      alert('Image is larger than 4 MB. Please use a smaller file to avoid storage issues.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = function (ev) {
+      const dataUrl = ev.target.result;
+      if (fImageData)    fImageData.value = dataUrl;
+      if (fImagePreview) {
+        fImagePreview.src = dataUrl;
+        fImagePreview.classList.remove('hidden');
+      }
+      if (fImageLabel) fImageLabel.textContent = file.name || 'Image attached';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // File picker
+  if (fImage) {
+    fImage.addEventListener('change', function (e) {
+      applyImageFile(e.target.files[0]);
+    });
+  }
+
+  // Ctrl+V paste into the answer textarea
+  const fContent = document.getElementById('fContent');
+  if (fContent) {
+    fContent.addEventListener('paste', function (e) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          e.preventDefault(); // don't paste garbage text
+          applyImageFile(items[i].getAsFile());
+          break;
+        }
+      }
+    });
+  }
+
+  // Remove button
+  if (fImageRemove) {
+    fImageRemove.addEventListener('click', clearTopicImage);
+  }
+
+  // Clear image fields when the modal opens for a new topic
+  const topicModal = document.getElementById('topicModal');
+  if (topicModal) {
+    new MutationObserver(function () {
+      if (!topicModal.classList.contains('hidden') && !window.T?.editingTopicId) {
+        clearTopicImage();
+      }
+    }).observe(topicModal, { attributes: true, attributeFilter: ['class'] });
+  }
+
+})();
+</script>
+</body>
+</html>
